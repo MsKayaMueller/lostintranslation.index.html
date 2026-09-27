@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lost in Translation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --page:#dfe8f2; --ink:#232842; --muted:#5a6280; --frame:#2d3354;
+  --pixel:'Press Start 2P', 'Courier New', monospace;
+  --read:'Pixelify Sans', 'Trebuchet MS', system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --page:#161a2c; --ink:#e7eaf7; --muted:#9aa3c4; --frame:#0c0f1e; }
+}
+:root[data-theme="dark"]{ --page:#161a2c; --ink:#e7eaf7; --muted:#9aa3c4; --frame:#0c0f1e; }
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;min-height:100%;background:var(--page);color:var(--ink);font-family:var(--read);
+  display:flex;flex-direction:column;align-items:center;padding:12px}
+.wrap{width:100%;max-width:980px}
+.game{position:relative;width:100%;aspect-ratio:16/11;background:#000;border:6px solid var(--frame);
+  border-radius:14px;overflow:hidden;container-type:inline-size;user-select:none;-webkit-user-select:none;
+  font-size:clamp(10px,2.3cqw,21px)}
+canvas#cv{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+.hidden{display:none!important}
+
+/* HUD */
+.hud{position:absolute;top:1.6%;left:1.6%;right:1.6%;display:flex;gap:.6em;align-items:flex-start;pointer-events:none}
+.quest{background:rgba(255,253,240,.94);color:#232842;border:3px solid #384070;border-radius:8px;padding:.35em .6em;
+  font-family:var(--read);font-weight:600;font-size:.95em;line-height:1.25;max-width:62%}
+.quest b{font-family:var(--pixel);font-size:.62em;color:#c0392b;display:block;margin-bottom:.25em;font-weight:400}
+.hearts{margin-left:auto;background:rgba(255,253,240,.94);border:3px solid #384070;border-radius:8px;padding:.3em .5em;
+  font-family:var(--pixel);font-size:.62em;color:#232842;text-align:center;line-height:1.5}
+.hearts span{color:#e2475f;font-size:1.3em;letter-spacing:.05em}
+.hudbtns{display:flex;gap:.4em;pointer-events:auto}
+.hudbtn{font-family:var(--pixel);font-size:.6em;background:#ffd23f;color:#232842;border:3px solid #384070;border-radius:8px;
+  padding:.55em .6em;cursor:pointer}
+.hudbtn:focus-visible,.move:focus-visible,.bigbtn:focus-visible,.padbtn:focus-visible{outline:3px solid #ff5d8f;outline-offset:2px}
+
+/* dialog boxes */
+.box{position:absolute;left:1.6%;right:1.6%;bottom:2%;min-height:25%;background:#fff;color:#1f2340;
+  border:4px solid #384070;border-radius:10px;box-shadow:inset 0 0 0 3px #cfd6f6;padding:.9em 1.1em 1.1em;
+  font-family:var(--read);font-size:1.3em;line-height:1.35;cursor:pointer}
+.tag{position:absolute;top:-1.15em;left:.8em;font-family:var(--pixel);font-size:.5em;color:#fff;padding:.55em .8em;border-radius:6px;
+  border:3px solid #384070;display:flex;gap:.6em;align-items:center}
+.tag i{font-style:normal;background:#fff;color:#232842;border-radius:4px;padding:.2em .35em}
+.arrow{position:absolute;right:.9em;bottom:.4em;color:#e2475f;font-size:.8em;animation:bob .6s steps(2) infinite}
+@keyframes bob{50%{transform:translateY(3px)}}
+
+/* battle */
+#battle{position:absolute;inset:0;background:
+  linear-gradient(180deg,#9fd8ff 0%,#d9f1ff 52%,#b9e59a 52%,#8fd16a 100%)}
+#battle.flash{animation:flash .5s steps(2) 2}
+@keyframes flash{50%{filter:invert(1)}}
+.plat{position:absolute;border-radius:50%;background:#78b85a;box-shadow:inset 0 -6px 0 #5f9a45}
+.plat.foe{right:6%;top:36%;width:34%;height:9%}
+.plat.ally{left:4%;top:56%;width:38%;height:9%}
+.foe-sprite{position:absolute;right:10%;top:3%;width:26%;transition:transform .5s,opacity .8s}
+.foe-sprite svg{width:100%;height:auto;display:block;animation:float 1.6s ease-in-out infinite}
+.foe-sprite.hit svg{animation:shake .35s steps(4) 1}
+.foe-sprite.gone{transform:translateY(40%) scale(.3);opacity:0}
+@keyframes float{50%{transform:translateY(-5%)}}
+@keyframes shake{25%{transform:translateX(-6%)}75%{transform:translateX(6%)}}
+.ally-sprite{position:absolute;left:10%;top:28%;width:26%;image-rendering:pixelated}
+.panel{position:absolute;background:#fffdf0;color:#232842;border:4px solid #384070;border-radius:10px 2px 10px 2px;
+  padding:.45em .7em;font-family:var(--pixel);font-size:.58em;line-height:1.6;width:40%}
+.panel.foe{left:4%;top:6%}
+.panel.ally{right:4%;top:44%}
+.bar{height:.9em;background:#434a6e;border-radius:4px;padding:2px;margin-top:.3em}
+.bar div{height:100%;border-radius:3px;background:#b36bd8;transition:width .7s steps(12)}
+.panel.ally .bar div{background:#e2475f}
+.bpanel{position:absolute;left:1.6%;right:1.6%;bottom:2%;height:33%;background:#fff;color:#1f2340;border:4px solid #384070;
+  border-radius:10px;box-shadow:inset 0 0 0 3px #cfd6f6;padding:.75em 1em;font-family:var(--read);font-size:1.25em;line-height:1.3;
+  display:flex;flex-direction:column;cursor:pointer}
+.bpanel .tag{top:-1.2em}
+.btext{flex:0 0 auto}
+.moves{display:grid;grid-template-columns:1fr 1fr;gap:.35em;margin-top:.45em;flex:1}
+.move{font-family:var(--pixel);font-size:.55em;background:#eef1ff;color:#232842;border:3px solid #384070;border-radius:8px;
+  cursor:pointer;text-align:left;padding:.3em .8em;display:flex;align-items:center;gap:.6em;min-height:2.6em}
+.move::before{content:'';width:0;height:0;border-left:.7em solid transparent;border-top:.45em solid transparent;border-bottom:.45em solid transparent}
+.move.sel{background:#ffd23f}
+.move.sel::before{border-left-color:#232842}
+.move:hover{background:#fff1b0}
+
+/* book */
+#book{position:absolute;inset:0;background:#fff7e0;color:#232842;display:flex;flex-direction:column;padding:3% 3.5%}
+#book h2{font-family:var(--pixel);font-size:1em;margin:0 0 .3em;color:#384070;display:flex;justify-content:space-between;align-items:center}
+#book p{margin:0 0 .6em;font-size:1.05em;color:#5a6280}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5em,1fr));gap:.5em;overflow:auto;flex:1;padding-bottom:.4em}
+.card{background:#fff;border:3px solid #384070;border-radius:8px;padding:.4em .6em;display:grid;grid-template-columns:auto 1fr;
+  column-gap:.6em;align-items:center;font-size:1.05em;line-height:1.35}
+.card .ic{font-size:1.9em;grid-row:span 2}
+.card .uk,.card .us{display:flex;gap:.4em;align-items:baseline}
+.card small{font-family:var(--pixel);font-size:.5em;padding:.25em .35em;border-radius:3px;color:#fff}
+.card .uk small{background:#3b6fd1}.card .us small{background:#d64545}
+.card.locked{opacity:.45;border-style:dashed}
+
+/* title + ending */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  padding:4%;background:linear-gradient(180deg,#3a4a9a 0%,#6f5fc8 55%,#f08fb0 100%);color:#fff}
+.logo{font-family:var(--pixel);font-size:2.4em;line-height:1.25;margin:0;color:#ffd23f;
+  text-shadow:4px 4px 0 #232842,-2px -2px 0 #232842,2px -2px 0 #232842,-2px 2px 0 #232842}
+.logo span{display:block;font-size:.5em;color:#fff;margin-top:.5em;letter-spacing:.08em}
+.sub{font-size:1.25em;margin:.8em 0 .4em;max-width:30em}
+.duo{width:24%;image-rendering:pixelated;margin:.6em 0}
+.bigbtn{font-family:var(--pixel);font-size:.8em;background:#ffd23f;color:#232842;border:4px solid #232842;border-radius:10px;
+  padding:.9em 1.4em;cursor:pointer;box-shadow:0 5px 0 #232842;margin:.3em}
+.bigbtn:active{transform:translateY(3px);box-shadow:0 2px 0 #232842}
+.blink{animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.35}}
+.howto{font-size:1em;opacity:.95;margin-top:.8em;line-height:1.45}
+.score{font-family:var(--pixel);font-size:.75em;line-height:1.8;margin:.4em 0}
+.score .rank{color:#ffd23f;font-size:1.2em}
+
+/* touch pad */
+.pad{display:none;justify-content:space-between;align-items:center;margin-top:12px;padding:0 6px}
+@media (pointer:coarse){.pad{display:flex}}
+.dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:2px}
+.padbtn{background:#384070;color:#fff;border:0;border-radius:10px;font-size:22px;touch-action:none;font-family:var(--pixel)}
+.padbtn:active{background:#5a64a8}
+.dpad .u{grid-column:2;grid-row:1}.dpad .l{grid-column:1;grid-row:2}.dpad .r{grid-column:3;grid-row:2}.dpad .d{grid-column:2;grid-row:3}
+.ab{display:flex;gap:14px;align-items:center}
+.ab .padbtn{width:72px;height:72px;border-radius:50%;font-size:18px}
+.ab .a{background:#e2475f}
+.help{color:var(--muted);font-size:15px;text-align:center;margin:12px 0 0}
+kbd{font-family:var(--pixel);font-size:10px;border:2px solid var(--muted);border-radius:4px;padding:2px 5px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="game" id="game">
+    <canvas id="cv" aria-label="Game map"></canvas>
+
+    <div class="hud hidden" id="hud">
+      <div class="quest" id="quest"><b>QUEST</b><span id="questText"></span></div>
+      <div class="hearts" id="hearts">UNDERSTANDING<br><span id="heartRow"></span></div>
+      <div class="hudbtns">
+        <button class="hudbtn" id="bookBtn" title="Word book (B)">📖 WORDS</button>
+        <button class="hudbtn" id="soundBtn" title="Sound on/off">🔊</button>
+      </div>
+    </div>
+
+    <div class="box hidden" id="dialog" role="dialog" aria-live="polite">
+      <div class="tag hidden" id="dTag"></div>
+      <div id="dText"></div>
+      <div class="arrow" id="dArrow">▼</div>
+    </div>
+
+    <div id="battle" class="hidden">
+      <div class="plat foe"></div>
+      <div class="plat ally"></div>
+      <div class="foe-sprite" id="foeSprite"></div>
+      <canvas class="ally-sprite" id="allyCv" width="320" height="144"></canvas>
+      <div class="panel foe"><span id="foeName">CONFUSION CLOUD</span><div style="display:flex;justify-content:space-between"><span>CONFUSION</span></div><div class="bar"><div id="foeHp" style="width:100%"></div></div></div>
+      <div class="panel ally"><span>JAKE &amp; LILY</span><div>UNDERSTANDING</div><div class="bar"><div id="allyHp" style="width:10%"></div></div></div>
+      <div class="bpanel" id="bpanel" aria-live="polite">
+        <div class="tag hidden" id="bTag"></div>
+        <div class="btext" id="bText"></div>
+        <div class="moves hidden" id="moves"></div>
+        <div class="arrow" id="bArrow">▼</div>
+      </div>
+    </div>
+
+    <div id="book" class="hidden" role="dialog" aria-label="Word book">
+      <h2><span>📖 WORD BOOK <span id="bookCount"></span></span><button class="hudbtn" id="closeBook">CLOSE</button></h2>
+      <p>British English (UK) and American English (USA). Help Jake and Lily to find new words!</p>
+      <div class="cards" id="cards"></div>
+    </div>
+
+    <div class="screen" id="title">
+      <h1 class="logo">LOST IN<br>TRANSLATION<span>UK ENGLISH vs. US ENGLISH</span></h1>
+      <canvas class="duo" id="titleCv" width="320" height="200"></canvas>
+      <p class="sub">Jake is from the USA. Lily is from England. They like each other… but they don't understand each other!</p>
+      <button class="bigbtn blink" id="startBtn">PRESS START</button>
+      <div class="howto">Walk: arrow keys or WASD &nbsp;|&nbsp; Talk / next: SPACE or ENTER &nbsp;|&nbsp; Word book: B</div>
+    </div>
+
+    <div class="screen hidden" id="ending">
+      <h2 class="logo" style="font-size:1.9em">THE END</h2>
+      <canvas class="duo" id="endCv" width="320" height="200"></canvas>
+      <p class="sub" id="endText"></p>
+      <div class="score" id="endScore"></div>
+      <div><button class="bigbtn" id="endBook">📖 WORD BOOK</button><button class="bigbtn" id="againBtn">PLAY AGAIN</button></div>
+    </div>
+  </div>
+
+  <div class="pad" id="pad">
+    <div class="dpad">
+      <button class="padbtn u" data-dir="up" aria-label="Up">▲</button>
+      <button class="padbtn l" data-dir="left" aria-label="Left">◀</button>
+      <button class="padbtn r" data-dir="right" aria-label="Right">▶</button>
+      <button class="padbtn d" data-dir="down" aria-label="Down">▼</button>
+    </div>
+    <div class="ab">
+      <button class="padbtn b" id="padB" aria-label="Word book">B</button>
+      <button class="padbtn a" id="padA" aria-label="Talk">A</button>
+    </div>
+  </div>
+  <p class="help">Walk with <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>WASD</kbd>. Talk and read on with <kbd>SPACE</kbd>. In a battle, choose a word with the arrow keys, <kbd>1</kbd>–<kbd>4</kbd> or a click.</p>
+</div>
+
+<script>
+/* ================= WORDS ================= */
+const W = {
+  rucksack:   {uk:'rucksack',    us:'backpack',      icon:'🎒'},
+  lift:       {uk:'lift',        us:'elevator',      icon:'⬆️'},
+  chips:      {uk:'chips',       us:'French fries',  icon:'🍟'},
+  queue:      {uk:'queue',       us:'line',          icon:'👥'},
+  mum:        {uk:'mum',         us:'mom',           icon:'👩', usShow:'mom, mommy'},
+  film:       {uk:'film',        us:'movie',         icon:'🎬'},
+  cinema:     {uk:'cinema',      us:'movie theater', icon:'🍿'},
+  trousers:   {uk:'trousers',    us:'pants',         icon:'👖'},
+  trainers:   {uk:'trainers',    us:'sneakers',      icon:'👟'},
+  shop:       {uk:'shop',        us:'store',         icon:'🏪'},
+  underground:{uk:'underground', us:'subway',        icon:'🚇'},
+  rubbish:    {uk:'rubbish',     us:'trash',         icon:'🗑️'},
+  holidays:   {uk:'holidays',    us:'vacation',      icon:'🏖️', ukShow:'holiday(s)'}
+};
+const WORD_ORDER = Object.keys(W);
+
+/* dir 'us' = Lily says a UK word, Jake needs the US word. dir 'uk' = Jake says a US word, Lily needs the UK word. */
+const Q = {
+  rucksack:{dir:'us',
+    setup:[['lily','Oh no! I left my rucksack in the classroom!'],['jake','Your ruck… sack? A sack for rocks? What is that?']],
+    ask:'Help Jake! What is "rucksack" in American English?',
+    options:['backpack','elevator','pants','store'],
+    wrong:'You left your {W} in the classroom?! Hmm… no.',
+    after:[['jake','Oh, your BACKPACK! I can help you find it!'],['lily','Thanks, Jake! You are so nice.']]},
+  lift:{dir:'us',
+    setup:[['lily','Our classroom is on the 4th floor. Let\'s take the lift!'],['jake','The lift? You want me to LIFT you? I\'m not that strong!']],
+    ask:'Help Jake! What is "lift" in American English?',
+    options:['elevator','subway','line','vacation'],
+    wrong:'Take the {W} to the 4th floor? That\'s weird!',
+    after:[['jake','Oh! The ELEVATOR! Ha ha, sorry!'],['lily','Ha ha! You are funny, Jake.']]},
+  chips:{dir:'uk',
+    setup:[['jake','I want a burger and French fries!'],['lily','French fries? Are they from France? Do they speak French?']],
+    ask:'Help Lily! What is "French fries" in British English?',
+    options:['chips','rubbish','trainers','film'],
+    wrong:'A burger and {W}? Yuck! No, no, no!',
+    after:[['lily','Oh, CHIPS! I love chips!'],['jake','Me too!']]},
+  queue:{dir:'us',
+    setup:[['lily','Look at all the people! We have to queue.'],['jake','Q? The letter Q? Q, R, S, T… I don\'t get it!']],
+    ask:'Help Jake! What is "queue" in American English?',
+    options:['line','store','trash','movie'],
+    wrong:'We have to stand in {W}? I don\'t think so!',
+    after:[['jake','Oh, we have to stand in LINE! OK, no problem.']]},
+  mum:{dir:'us',
+    setup:[['sys','RING RING! Lily\'s phone is ringing.'],['lily','Oh, it\'s my mum! She wants to know where I am.'],['jake','Your mum? What\'s a mum?']],
+    ask:'Help Jake! What is "mum" in American English?',
+    options:['mom','film','elevator','sneakers'],
+    wrong:'Your {W} is calling you?! How?',
+    after:[['jake','Oh, your MOM! Tell her I say hi!'],['lily','Mum says hi back. She thinks you are very polite!'],['jake','Heh… thanks!']]},
+  trousers:{dir:'uk',
+    setup:[['jake','I need new pants. My old pants are too small!'],['lily','WHAT?! Don\'t talk about your underwear! Ha ha!'],['sys','In British English, "pants" can mean underwear!']],
+    ask:'Help Lily! What is "pants" (American English) in British English?',
+    options:['trousers','trainers','rucksack','chips'],
+    wrong:'You need new {W}? Hmm, that\'s not it.',
+    after:[['lily','Oh, TROUSERS! Phew! OK!'],['jake','Ha ha! Sorry, Lily!']]},
+  trainers:{dir:'us',
+    setup:[['lily','And I need new trainers for P.E.'],['jake','Trainers? You need a new sports coach?']],
+    ask:'Help Jake! What is "trainers" in American English?',
+    options:['sneakers','pants','backpack','line'],
+    wrong:'You need new {W} for P.E.? Really?',
+    after:[['jake','Oh, SNEAKERS! Cool, I need sneakers too!']]},
+  shop:{dir:'uk',
+    setup:[['jake','Wow, this store is awesome!'],['lily','Store? Do you want to store things? In a box?']],
+    ask:'Help Lily! What is "store" in British English?',
+    options:['shop','cinema','lift','queue'],
+    wrong:'This {W} is awesome? I\'m so confused!',
+    after:[['lily','Oh, this SHOP! Yes, it\'s lovely!']]},
+  underground:{dir:'us',
+    setup:[['lily','Let\'s take the underground to the park!'],['jake','Under… the ground? Do we have to dig a hole?']],
+    ask:'Help Jake! What is "underground" in American English?',
+    options:['subway','elevator','store','vacation'],
+    wrong:'Let\'s take the {W}? Huh?',
+    after:[['jake','Oh, the SUBWAY! Let\'s go!']]},
+  rubbish:{dir:'uk',
+    setup:[['jake','I finished my soda. Where can I put my trash?'],['lily','Trash? What is trash?']],
+    ask:'Help Lily! What is "trash" in British English?',
+    options:['rubbish','queue','mum','holidays'],
+    wrong:'Your {W}? What do you mean?',
+    after:[['lily','Oh, your RUBBISH! Put it in the bin over there.'],['jake','Thanks! (…What is a bin?? Never mind!)']]},
+  holidays:{dir:'us',
+    setup:[['lily','My holidays end next week. Then I have to fly home to England.'],['jake','Holidays? But it isn\'t Christmas!']],
+    ask:'Help Jake! What is "holidays" in American English?',
+    options:['vacation','movie','pants','backpack'],
+    wrong:'Your {W} ends next week? What?',
+    after:[['jake','Oh, your VACATION. Oh no… I will miss you, Lily.'],['lily','I will miss you too, Jake.']]},
+  film:{dir:'uk',
+    setup:[['jake','Um… Lily? Do you want to watch a movie with me? Tonight?'],['lily','A movie? What is a movie?']],
+    ask:'Help Lily! What is "movie" in British English?',
+    options:['film','lift','chips','shop'],
+    wrong:'Watch a {W} with you? I don\'t understand!',
+    after:[['lily','A FILM! Oh yes, I\'d love to!']]},
+  cinema:{dir:'uk',
+    setup:[['jake','Great! Let\'s meet at the movie theater at 7!'],['lily','The movie… theater? A theatre with actors on a stage?']],
+    ask:'Help Lily! What is "movie theater" in British English?',
+    options:['cinema','underground','trousers','rubbish'],
+    wrong:'Meet at the {W}? Where is that?',
+    after:[['lily','Oh, the CINEMA! See you there, Jake!'],['jake','YES! (She said yes!!)']]}
+};
+
+const WHO = {
+  jake:{name:'JAKE', tag:'USA', color:'#d64545'},
+  lily:{name:'LILY', tag:'UK', color:'#3b6fd1'},
+  teacher:{name:'MS. PARKER', color:'#8e44ad'},
+  king:{name:'KING CONFUSION', color:'#5b3a9e'},
+  dog:{name:'DOG', color:'#a0662e'},
+  old:{name:'MR. BROWN', color:'#2f8f46'},
+  kid:{name:'TIM', color:'#e08a1e'},
+  girl:{name:'ZOE', color:'#d6457f'},
+  sys:null
+};
+
+const STATIONS = [
+  {place:'SCHOOL', quest:'Talk to Jake and Lily at the SCHOOL.', j:[9,8], l:[10,8],
+   pre:[['lily','Hi! I\'m Lily. I\'m from London, England.'],['jake','And I\'m Jake from Chicago, USA!'],['lily','We are in the same class. Jake is really nice…'],['jake','And Lily is really cool!'],['lily','But sometimes we don\'t understand each other.'],['jake','Yeah. We both speak English… but not the SAME English!']],
+   qs:['rucksack','lift'],
+   post:[['lily','Thank you! You are a great helper!'],['jake','Let\'s go to the SNACK BAR. I\'m so hungry!'],['sys','Jake and Lily walk to the SNACK BAR.']]},
+  {place:'SNACK BAR', quest:'Go to the SNACK BAR.', j:[24,8], l:[25,8],
+   pre:[['jake','Hey, you\'re here! This snack bar smells so good!'],['lily','Let\'s get some food!']],
+   qs:['chips','queue','mum'],
+   post:[['jake','That was yummy!'],['lily','Now I need some warm clothes. Let\'s go to the CLOTHES shop!'],['sys','Jake and Lily walk to the CLOTHES shop.']]},
+  {place:'CLOTHES', quest:'Go to the CLOTHES shop.', j:[7,17], l:[8,17],
+   pre:[['lily','Brrr! It\'s cold today.'],['jake','Let\'s buy some new clothes!']],
+   qs:['trousers','trainers','shop'],
+   post:[['lily','I love my new trousers and trainers!'],['jake','And I love my new pants! …My new TROUSERS, I mean! Ha ha!'],['lily','Let\'s go to the STATION!'],['sys','Jake and Lily walk to the STATION.']]},
+  {place:'STATION', quest:'Go to the STATION (the blue sign).', j:[13,17], l:[14,17],
+   pre:[['jake','Where do we go now?'],['lily','To the park! It\'s next to the big pond.']],
+   qs:['underground','rubbish'],
+   post:[['sys','Jake and Lily go to the PARK.'],['sys','(Jake still doesn\'t know what a bin is.)']]},
+  {place:'PARK', quest:'Go to the PARK next to the pond.', j:[13,7], l:[14,7],
+   pre:[['jake','What a beautiful park!'],['lily','…'],['jake','Lily? You look sad. What\'s wrong?']],
+   qs:['holidays','film','cinema'],
+   post:[['sys','Jake and Lily go to the STARLIGHT cinema. Or is it a movie theater?']]},
+  {place:'CINEMA', quest:'Go to the STARLIGHT cinema.', j:[22,17], l:[23,17], boss:true,
+   pre:[['jake','Here we are! The movie theater!'],['lily','The CINEMA! Ha ha!'],['sys','Suddenly, the sky gets dark…'],['king','HA HA HA HA HA!']],
+   qs:[],
+   post:[]}
+];
+
+/* ================= STATE ================= */
+let mode = 'title';          // title | map | talk | battle | book | end
+let stage = 0;
+let score = 0;
+const TOTAL = 13 + 5;
+const unlocked = new Set();
+let soundOn = true;
+
+/* ================= SOUND ================= */
+let actx = null;
+function tone(f, d, type='square', vol=.035, when=0){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = f;
+    const t = actx.currentTime + when;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + d + .03);
+  }catch(e){}
+}
+const sfx = {
+  blip(){ tone(720,.03,'square',.015) },
+  select(){ tone(990,.05,'square',.03) },
+  good(){ [523,659,784,1046].forEach((f,i)=>tone(f,.12,'square',.035,i*.08)) },
+  bad(){ tone(220,.14,'sawtooth',.035); tone(160,.22,'sawtooth',.035,.12) },
+  meet(){ [392,392,523,392,659].forEach((f,i)=>tone(f,.09,'square',.03,i*.09)) },
+  win(){ [523,659,784,659,784,1046,1046].forEach((f,i)=>tone(f,.14,'triangle',.05,i*.12)) },
+  bump(){ tone(110,.05,'square',.02) }
+};
+
+/* ================= MAP ================= */
+const T = 16, VW = 16, VH = 11, MW = 32, MH = 22;
+const G=0, PATH=1, TREE=2, WATER=3, FLOWER=4, BENCH=5, BLD=6;
+const tiles = Array.from({length:MH}, ()=>Array(MW).fill(G));
+const fill = (x,y,w,h,t)=>{ for(let j=y;j<y+h;j++) for(let i=x;i<x+w;i++) tiles[j][i]=t; };
+for(let x=0;x<MW;x++){ tiles[0][x]=TREE; tiles[MH-1][x]=TREE; }
+for(let y=0;y<MH;y++){ tiles[y][0]=TREE; tiles[y][MW-1]=TREE; }
+fill(12,1,8,6,FLOWER); fill(13,2,6,4,WATER);
+fill(1,10,30,2,PATH); fill(15,6,2,13,PATH); fill(2,18,28,1,PATH);
+fill(7,7,1,3,PATH); fill(23,7,1,3,PATH); fill(6,17,1,1,PATH); fill(25,17,1,1,PATH);
+fill(11,17,2,1,PATH);
+tiles[7][18]=BENCH; tiles[7][19]=BENCH;
+[[28,2],[29,3],[28,5],[29,6],[29,8],[2,7],[1,8],[12,8],[10,13],[13,13],[19,13],[18,15],[19,16],
+ [3,20],[5,20],[8,20],[20,20],[27,20],[1,15],[1,17],[30,14],[30,16],[20,2],[11,1]].forEach(([x,y])=>tiles[y][x]=TREE);
+
+const BUILDINGS = [
+  {x:3, y:2, w:9, h:5, label:'SCHOOL',    wall:'#f4e6c8', roof:'#c9514b', door:7,  sign:['#3b2f2f','#fff5c2']},
+  {x:21,y:3, w:6, h:4, label:'SNACK BAR', wall:'#fff3dc', roof:'#e8a33d', door:23, sign:['#b33a2a','#fff']},
+  {x:3, y:13,w:6, h:4, label:'CLOTHES',   wall:'#f9e0ec', roof:'#b05fa8', door:6,  sign:['#5a2a57','#ffd9f1']},
+  {x:21,y:12,w:8, h:5, label:'STARLIGHT', wall:'#e6e2f7', roof:'#4b4a8f', door:25, sign:['#ffd23f','#3a2a70'], cinema:true},
+  {x:10,y:15,w:5, h:2, label:'STATION', station:true}
+];
+BUILDINGS.forEach(b=>fill(b.x,b.y,b.w,b.h,BLD));
+
+/* ================= CHARACTERS ================= */
+const LOOK = {
+  player:{skin:'#f1c79c', hair:'#5b3a1e', shirt:'#2f9e6e', pants:'#34495e', hat:'#1f6f8b', beanie:true},
+  jake:  {skin:'#9a6440', hair:'#1b1b1b', shirt:'#d64545', pants:'#3b4a78', hat:'#2a4d9b'},
+  lily:  {skin:'#f7d4b5', hair:'#dd7a3a', shirt:'#3b6fd1', pants:'#2b2b4b', long:true, skirt:true},
+  teacher:{skin:'#f0c8a0', hair:'#8d8d95', shirt:'#8e44ad', pants:'#3a2d4a', bun:true, skirt:true},
+  old:   {skin:'#e8b996', hair:'#dcdcdc', shirt:'#2f8f46', pants:'#5a4a3a'},
+  kid:   {skin:'#c68b5e', hair:'#2a1a10', shirt:'#f2a53a', pants:'#3b5b8f', hat:'#e2475f'},
+  girl:  {skin:'#fbe0c8', hair:'#1f1f2e', shirt:'#ff7fb0', pants:'#4a3a6a', long:true, skirt:true}
+};
+
+function drawChar(c, x, y, L, dir, step){
+  const p=(dx,dy,w,h,col)=>{ c.fillStyle=col; c.fillRect(x+dx,y+dy,w,h); };
+  p(3,14,10,2,'rgba(0,0,0,.2)');
+  // legs
+  const legCol = L.skirt ? L.skin : L.pants;
+  const a = step ? 1 : 0, b = step ? 0 : 1;
+  if(step===undefined){ p(5,11,2,4,legCol); p(9,11,2,4,legCol); p(5,14,2,1,'#2a2a2a'); p(9,14,2,1,'#2a2a2a'); }
+  else { p(5,11,2,4-a,legCol); p(9,11,2,4-b,legCol); p(5,14-a,2,1,'#2a2a2a'); p(9,14-b,2,1,'#2a2a2a'); }
+  // body
+  p(4,7,8,5,L.shirt); p(4,11,8,1,'rgba(0,0,0,.15)');
+  if(L.skirt) p(4,10,8,3,L.pants);
+  if(dir==='left'||dir==='right'){ p(7,8,2,3,shade(L.shirt)); p(7,11,2,1,L.skin); }
+  else { p(3,8,1,3,L.shirt); p(12,8,1,3,L.shirt); p(3,11,1,1,L.skin); p(12,11,1,1,L.skin); }
+  // head
+  p(4,1,8,7,L.skin); p(4,1,1,1,'transparent');
+  // long hair behind
+  if(L.long){ if(dir==='up') p(4,6,8,4,L.hair); else if(dir==='down'){ p(3,2,1,8,L.hair); p(12,2,1,8,L.hair);} else if(dir==='left') p(9,2,4,8,L.hair); else p(3,2,4,8,L.hair); }
+  // hair
+  if(dir==='up'){ p(4,0,8,7,L.hair); p(3,1,1,5,L.hair); p(12,1,1,5,L.hair); }
+  else if(dir==='down'){ p(4,0,8,3,L.hair); p(3,1,1,4,L.hair); p(12,1,1,4,L.hair); p(5,3,2,1,L.hair); }
+  else if(dir==='left'){ p(4,0,8,3,L.hair); p(8,1,4,5,L.hair); p(12,2,1,3,L.hair); }
+  else { p(4,0,8,3,L.hair); p(4,1,4,5,L.hair); p(3,2,1,3,L.hair); }
+  if(L.bun) p(6,-2,4,3,L.hair);
+  // hats
+  if(L.beanie){ p(3,-1,10,3,L.hat); p(3,1,10,1,shade(L.hat)); p(7,-2,2,1,'#fff'); }
+  else if(L.hat){ p(4,-1,8,3,L.hat); if(dir==='up') p(5,2,6,1,shade(L.hat)); if(dir==='down') p(3,1,1,1,L.hat); }
+  // face
+  if(dir==='down'){ p(6,4,1,2,'#222'); p(9,4,1,2,'#222'); if(L.long) {p(5,6,1,1,'#f39a9a'); p(10,6,1,1,'#f39a9a');} }
+  else if(dir==='left'){ p(5,4,1,2,'#222'); }
+  else if(dir==='right'){ p(10,4,1,2,'#222'); }
+}
+function drawDog(c,x,y,t){
+  const p=(dx,dy,w,h,col)=>{ c.fillStyle=col; c.fillRect(x+dx,y+dy,w,h); };
+  p(3,14,11,2,'rgba(0,0,0,.2)');
+  p(4,8,8,5,'#b5793f'); p(4,12,2,3,'#b5793f'); p(10,12,2,3,'#b5793f');
+  p(10,4,5,6,'#b5793f'); p(10,3,2,3,'#7a4a24'); p(14,7,2,2,'#2a2a2a'); p(12,6,1,1,'#222');
+  const wag = Math.floor(t/180)%2;
+  p(2,wag?6:7,2,3,'#b5793f');
+}
+function shade(hex){
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.floor(r*.78); g=Math.floor(g*.78); b=Math.floor(b*.78);
+  return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);
+}
+
+/* ================= TILE RENDER ================= */
+function hash(x,y){ let n=(x*374761393 + y*668265263)|0; n=Math.imul(n^(n>>>13),1274126177); return ((n^(n>>>16))>>>0)/4294967295; }
+function drawTile(c,tx,ty){
+  const X=tx*T, Y=ty*T, t=tiles[ty][tx], r=hash(tx,ty), r2=hash(ty+7,tx+3);
+  const p=(dx,dy,w,h,col)=>{ c.fillStyle=col; c.fillRect(X+dx,Y+dy,w,h); };
+  const grass=()=>{ p(0,0,16,16,'#8fd16a'); if(r<.45){ const a=2+Math.floor(r*20)%10, b=3+Math.floor(r2*9); p(a,b,1,2,'#6fb24f'); p(a+2,b,1,2,'#6fb24f'); p(a+1,b+1,1,1,'#6fb24f'); } };
+  if(t===PATH){ p(0,0,16,16,'#ecd9a4'); if(r<.6) p(Math.floor(r*14),Math.floor(r2*14),2,1,'#d8c285'); if(r2<.4) p(Math.floor(r2*13),Math.floor(r*13)+2,1,1,'#c9b173'); return; }
+  if(t===WATER){ p(0,0,16,16,'#58b4f0'); p(2+Math.floor(r*8),4+Math.floor(r2*8),5,1,'#a4dcff');
+    if(ty>0 && tiles[ty-1][tx]!==WATER) p(0,0,16,2,'#3a86c4');
+    if(tx>0 && tiles[ty][tx-1]!==WATER) p(0,0,2,16,'#3a86c4');
+    if(tx<MW-1 && tiles[ty][tx+1]!==WATER) p(14,0,2,16,'#7cc6f5');
+    if(ty<MH-1 && tiles[ty+1][tx]!==WATER) p(0,14,16,2,'#7cc6f5'); return; }
+  grass();
+  if(t===FLOWER){ const cols=['#ff6b8b','#ffd23f','#ffffff','#b58cff']; for(let k=0;k<3;k++){ const fx=1+Math.floor(hash(tx*3+k,ty)*12), fy=1+Math.floor(hash(ty*5+k,tx)*12); const col=cols[Math.floor(hash(k,tx+ty)*4)]; p(fx,fy,3,1,col); p(fx+1,fy-1,1,3,col); p(fx+1,fy,1,1,'#f5a623'); } }
+  if(t===TREE){ p(6,11,4,5,'#7a4a24'); p(2,1,12,10,'#2f8f46'); p(1,3,14,6,'#2f8f46'); p(3,0,10,1,'#2f8f46'); p(4,2,5,3,'#4fb566'); p(2,8,12,3,'#23703a'); p(5,3,1,1,'#7fd08e'); }
+  if(t===BENCH){ p(0,5,16,3,'#a0662e'); p(0,9,16,2,'#8a5424'); p(2,11,2,4,'#555'); p(12,11,2,4,'#555'); }
+}
+function drawBuilding(c,b){
+  const X=b.x*T, Y=b.y*T, Wd=b.w*T, H=b.h*T;
+  const p=(x,y,w,h,col)=>{ c.fillStyle=col; c.fillRect(x,y,w,h); };
+  c.font="8px 'Press Start 2P'"; c.textBaseline='top';
+  if(b.station){
+    p(X,Y,Wd,H,'#9aa3ad'); p(X,Y,Wd,13,'#2456a6'); p(X,Y+12,Wd,1,'#173a73');
+    p(X+4,Y+2,9,9,'#e2475f'); p(X+6,Y+4,5,5,'#2456a6'); p(X+3,Y+5,11,3,'#e2475f');
+    c.fillStyle='#fff'; c.fillText(b.label,X+17,Y+3);
+    p(X+24,Y+15,32,17,'#2c2f38');
+    for(let s=0;s<4;s++) p(X+24,Y+18+s*4,32,1,'#5a5f6c');
+    p(X+22,Y+14,2,18,'#6b7280'); p(X+56,Y+14,2,18,'#6b7280');
+    return;
+  }
+  const rh = 22;
+  p(X+3,Y+H,Wd,3,'rgba(0,0,0,.18)');
+  p(X,Y+rh-4,Wd,H-rh+4,b.wall); p(X,Y+H-3,Wd,3,shade(b.wall));
+  p(X-2,Y,Wd+4,rh,b.roof);
+  for(let yy=Y+5; yy<Y+rh-2; yy+=5) p(X-2,yy,Wd+4,1,shade(b.roof));
+  p(X-2,Y+rh-2,Wd+4,2,shade(shade(b.roof)));
+  // windows
+  for(let i=0;i<b.w;i++){
+    const cx=b.x+i; if(cx===b.door || (i%2===1 && b.w>6 && !b.cinema)) continue;
+    const wx=X+i*T+3;
+    if(b.cinema){ if(i===0||i===b.w-1){ p(wx,Y+rh+14,10,18,'#fffdf0'); p(wx+1,Y+rh+15,8,16,'#e2475f'); c.fillStyle='#fff'; c.font="6px 'Press Start 2P'"; c.fillText('★',wx+2,Y+rh+19); c.font="8px 'Press Start 2P'"; } continue; }
+    p(wx,Y+rh+13,10,9,'#5a7fa8'); p(wx+1,Y+rh+14,8,7,'#9fd0f5'); p(wx+1,Y+rh+14,3,2,'#e6f6ff'); p(wx+4,Y+rh+13,1,9,'#5a7fa8');
+  }
+  // door
+  const dx=b.door*T; p(dx+3,Y+H-15,10,15,'#6b4226'); p(dx+4,Y+H-14,8,14,'#8a5a34'); p(dx+10,Y+H-8,1,2,'#ffd23f');
+  p(dx+1,Y+H-2,14,2,'#c9b173');
+  // sign
+  const tw=b.label.length*8, sw=tw+8, sx=X+Math.floor((Wd-sw)/2), sy=Y+rh;
+  p(sx,sy,sw,11,b.sign[0]);
+  if(b.cinema){ for(let k=sx+1;k<sx+sw;k+=4){ p(k,sy-1,2,1,'#fff'); p(k,sy+11,2,1,'#fff'); } }
+  c.fillStyle=b.sign[1]; c.fillText(b.label,sx+4,sy+2);
+}
+
+/* ================= CANVAS SETUP ================= */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const mapCv=document.createElement('canvas'), mctx=mapCv.getContext('2d');
+let K=3;
+function renderMap(){
+  mapCv.width=MW*T*K; mapCv.height=MH*T*K;
+  mctx.setTransform(K,0,0,K,0,0); mctx.imageSmoothingEnabled=false;
+  for(let y=0;y<MH;y++) for(let x=0;x<MW;x++) drawTile(mctx,x,y);
+  BUILDINGS.forEach(b=>drawBuilding(mctx,b));
+}
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  const nk=Math.max(2,Math.ceil(cv.clientWidth*dpr/(VW*T)));
+  if(nk!==K || cv.width!==VW*T*nk){ K=nk; cv.width=VW*T*K; cv.height=VH*T*K; renderMap(); }
+}
+window.addEventListener('resize',resize);
+
+/* ================= ENTITIES ================= */
+const player={x:15,y:13,px:15*T,py:13*T,dir:'left',moving:false,from:null,to:null,t:0,step:0};
+const npcs=[
+  {id:'teacher',x:14,y:13,dir:'right',look:'teacher'},
+  {id:'dog',x:19,y:9,dir:'down',dog:true},
+  {id:'old',x:20,y:7,dir:'down',look:'old'},
+  {id:'kid',x:9,y:19,dir:'up',look:'kid'},
+  {id:'girl',x:2,y:12,dir:'down',look:'girl'},
+  {id:'jake',x:9,y:8,dir:'right',look:'jake'},
+  {id:'lily',x:10,y:8,dir:'left',look:'lily'}
+];
+const npcAt=(x,y)=>npcs.find(n=>n.x===x&&n.y===y&&!n.hidden);
+function walkable(x,y){
+  if(x<0||y<0||x>=MW||y>=MH) return false;
+  const t=tiles[y][x]; if(t===TREE||t===WATER||t===BENCH||t===BLD) return false;
+  return !npcAt(x,y);
+}
+function placePair(){
+  const st=STATIONS[stage]; const j=npcs.find(n=>n.id==='jake'), l=npcs.find(n=>n.id==='lily');
+  [j.x,j.y]=st.j; [l.x,l.y]=st.l; j.dir='right'; l.dir='left';
+}
+
+/* ================= INPUT ================= */
+const held=[];
+const KEYMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'};
+const DV={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+window.addEventListener('keydown',e=>{
+  const d=KEYMAP[e.code];
+  if(d){
+    if(mode!=='title' && mode!=='end') e.preventDefault();
+    if(choosing){ if(!e.repeat) moveCursor(d); return; }
+    if(!held.includes(d)) held.push(d); return;
+  }
+  if(['Space','Enter','KeyE','NumpadEnter'].includes(e.code)){
+    if(document.activeElement && document.activeElement.tagName==='BUTTON' && !document.activeElement.classList.contains('move')) return;
+    e.preventDefault(); if(!e.repeat) pressA(); return;
+  }
+  if(e.code==='KeyB'||e.code==='Escape'){ if(!e.repeat) pressB(); return; }
+  if(choosing && /^Digit[1-4]$|^Numpad[1-4]$/.test(e.code)){ choose(parseInt(e.code.slice(-1))-1); }
+});
+window.addEventListener('keyup',e=>{ const d=KEYMAP[e.code]; if(d){ const i=held.indexOf(d); if(i>=0) held.splice(i,1); } });
+window.addEventListener('blur',()=>{ held.length=0; });
+document.querySelectorAll('.dpad .padbtn').forEach(btn=>{
+  const d=btn.dataset.dir;
+  const down=e=>{ e.preventDefault(); if(choosing){ moveCursor(d); return; } if(!held.includes(d)) held.push(d); };
+  const up=e=>{ e.preventDefault(); const i=held.indexOf(d); if(i>=0) held.splice(i,1); };
+  btn.addEventListener('pointerdown',down); btn.addEventListener('pointerup',up);
+  btn.addEventListener('pointerleave',up); btn.addEventListener('pointercancel',up);
+});
+document.getElementById('padA').addEventListener('pointerdown',e=>{ e.preventDefault(); pressA(); });
+document.getElementById('padB').addEventListener('pointerdown',e=>{ e.preventDefault(); pressB(); });
+
+function pressA(){
+  if(mode==='title'){ start(); return; }
+  if(dBox.active){ dBox.press(); return; }
+  if(bBox.active){ bBox.press(); return; }
+  if(choosing){ choose(cursor); return; }
+  if(mode==='book'){ closeBook(); return; }
+  if(mode==='map' && !player.moving) interact();
+}
+function pressB(){
+  if(mode==='map' && !player.moving) openBook();
+  else if(mode==='book') closeBook();
+}
+
+/* ================= TEXT BOXES ================= */
+class Box{
+  constructor(root,tag,text,arrow,hideOnEnd){ Object.assign(this,{root,tag,text,arrow,hideOnEnd}); this.active=false; this.q=[]; }
+  run(lines){ return new Promise(res=>{ this.q=lines.slice(); this.res=res; this.active=true; this.root.classList.remove('hidden'); this.next(); }); }
+  next(){
+    if(!this.q.length){ this.active=false; this.arrow.hidden=true; if(this.hideOnEnd) this.root.classList.add('hidden'); const r=this.res; this.res=null; r&&r(); return; }
+    const [who,txt]=this.q.shift(); this.speaker(who); this.type(txt,true);
+  }
+  speaker(who){
+    const w=WHO[who];
+    if(!w){ this.tag.classList.add('hidden'); return; }
+    this.tag.classList.remove('hidden'); this.tag.style.background=w.color;
+    this.tag.innerHTML=''; this.tag.append(w.name);
+    if(w.tag){ const i=document.createElement('i'); i.textContent=w.tag; this.tag.append(i); }
+  }
+  type(txt,withArrow){
+    clearInterval(this.iv); this.full=txt; this.i=0; this.typing=true; this.arrow.hidden=true; this.text.textContent=''; this.withArrow=withArrow;
+    this.iv=setInterval(()=>{ this.i++; this.text.textContent=this.full.slice(0,this.i); if(this.i%3===0) sfx.blip(); if(this.i>=this.full.length) this.finish(); },20);
+  }
+  finish(){ clearInterval(this.iv); this.typing=false; this.text.textContent=this.full; this.arrow.hidden=!this.withArrow; }
+  show(who,txt){ this.active=false; this.root.classList.remove('hidden'); this.speaker(who); this.type(txt,false); }
+  press(){ if(!this.active) return; if(this.typing) this.finish(); else this.next(); }
+}
+const $=id=>document.getElementById(id);
+const dBox=new Box($('dialog'),$('dTag'),$('dText'),$('dArrow'),true);
+const bBox=new Box($('bpanel'),$('bTag'),$('bText'),$('bArrow'),false);
+$('dialog').addEventListener('click',()=>pressA());
+$('bText').addEventListener('click',()=>{ if(bBox.active) pressA(); });
+$('bpanel').addEventListener('click',e=>{ if(e.target===$('bpanel') && bBox.active) pressA(); });
+const say=lines=>dBox.run(lines);
+const bsay=lines=>bBox.run(lines);
+
+/* ================= HUD ================= */
+function updateHud(){
+  $('questText').textContent = stage<STATIONS.length ? STATIONS[stage].quest : 'Enjoy the film… or the movie!';
+  let s=''; for(let i=0;i<STATIONS.length;i++) s += i<stage ? '♥' : '♡';
+  $('heartRow').textContent=s;
+}
+$('soundBtn').addEventListener('click',()=>{ soundOn=!soundOn; $('soundBtn').textContent=soundOn?'🔊':'🔇'; $('soundBtn').blur(); });
+$('bookBtn').addEventListener('click',()=>{ $('bookBtn').blur(); if(mode==='map') openBook(); });
+
+/* ================= WORD BOOK ================= */
+let bookReturn='map';
+function renderBook(){
+  const box=$('cards'); box.innerHTML='';
+  WORD_ORDER.forEach(k=>{
+    const w=W[k], open=unlocked.has(k);
+    const d=document.createElement('div'); d.className='card'+(open?'':' locked');
+    d.innerHTML = open
+      ? `<span class="ic">${w.icon}</span><span class="uk"><small>UK</small>${w.ukShow||w.uk}</span><span class="us"><small>USA</small>${w.usShow||w.us}</span>`
+      : `<span class="ic">❔</span><span class="uk"><small>UK</small>???</span><span class="us"><small>USA</small>???</span>`;
+    box.append(d);
+  });
+  $('bookCount').textContent=`${unlocked.size}/13`;
+}
+function openBook(from){ bookReturn=from||mode; renderBook(); $('book').classList.remove('hidden'); mode='book'; sfx.select(); }
+function closeBook(){ if(document.activeElement) document.activeElement.blur(); $('book').classList.add('hidden'); mode=bookReturn; sfx.select(); }
+$('closeBook').addEventListener('click',closeBook);
+
+/* ================= INTERACTION ================= */
+async function interact(){
+  const [dx,dy]=DV[player.dir]; const n=npcAt(player.x+dx,player.y+dy);
+  if(!n) return;
+  const back={up:'down',down:'up',left:'right',right:'left'}[player.dir];
+  if(n.id==='jake'||n.id==='lily'){ await runStation(); return; }
+  if(!n.dog) n.dir=back;
+  mode='talk';
+  const lines={
+    teacher:[['teacher','You can do it!'],['teacher','Your quest: '+(stage<STATIONS.length?STATIONS[stage].quest:'You did it!')],['teacher','Tip: Press B to open your WORD BOOK.']],
+    dog:[['dog','Woof! Woof!'],['sys','Good news: a dog says "woof" in British AND American English. Easy!']],
+    old:[['old','Hello, young helper! I\'m from Texas, USA.'],['old','My wife is from Manchester, England.'],['old','We are married for 40 years… and we still argue about the word "chips"! Ha ha!']],
+    kid:[['kid','I love trains!'],['kid','Fun fact: In London, people also call the underground "the Tube"!']],
+    girl:[['girl','Fashion tip!'],['girl','In England, don\'t say "I like your pants!" to people.'],['girl','They will think you mean their underwear! Ha ha!']]
+  }[n.id];
+  await say(lines);
+  mode='map';
+}
+
+async function runStation(){
+  const st=STATIONS[stage];
+  mode='talk';
+  await say(st.pre);
+  await battle(st);
+  if(st.boss){ ending(); return; }
+  mode='talk';
+  await say(st.post);
+  stage++;
+  placePair(); updateHud();
+  mode='map';
+}
+
+/* ================= BATTLE ================= */
+let choosing=false, cursor=0, choiceResolve=null, currentOpts=[];
+const shuffle=a=>{ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+const CLOUD=(king)=>`<svg viewBox="0 0 120 112" xmlns="http://www.w3.org/2000/svg" aria-label="${king?'King Confusion':'Confusion Cloud'}">
+  <ellipse cx="60" cy="106" rx="34" ry="5" fill="rgba(0,0,0,.15)"/>
+  <g transform="translate(0,12)">
+  <path d="M30 76 Q8 76 13 56 Q8 36 30 36 Q33 14 56 19 Q70 3 87 20 Q110 19 107 45 Q120 60 103 76 Z" fill="${king?'#8e6bd6':'#c3b4ee'}" stroke="#3d2d78" stroke-width="3"/>
+  <path d="M26 44 Q36 30 50 34" stroke="#fff" stroke-opacity=".6" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <circle cx="47" cy="50" r="8" fill="#fff" stroke="#3d2d78" stroke-width="2"/><circle cx="50" cy="52" r="3.5" fill="#222"/>
+  <circle cx="75" cy="47" r="9" fill="#fff" stroke="#3d2d78" stroke-width="2"/><circle cx="71" cy="44" r="3.5" fill="#222"/>
+  <path d="M44 66 q5 -5 10 0 t10 0 t10 0" stroke="#3d2d78" fill="none" stroke-width="3" stroke-linecap="round"/>
+  ${king?'<path d="M36 22 L40 2 L50 14 L60 -4 L70 14 L80 2 L84 22 Z" fill="#ffd23f" stroke="#8a6500" stroke-width="2"/><circle cx="60" cy="10" r="3" fill="#e2475f"/>':''}
+  </g>
+  <text x="2" y="30" font-family="Press Start 2P, monospace" font-size="14" fill="#3d2d78">?</text>
+  <text x="102" y="24" font-family="Press Start 2P, monospace" font-size="11" fill="#3d2d78">?</text>
+  <text x="108" y="72" font-family="Press Start 2P, monospace" font-size="9" fill="#3d2d78">?</text>
+</svg>`;
+
+function drawAlly(){
+  const c=$('allyCv').getContext('2d'); c.setTransform(8,0,0,8,0,0); c.imageSmoothingEnabled=false;
+  c.clearRect(0,0,40,18);
+  drawChar(c,3,2,LOOK.jake,'up'); drawChar(c,21,2,LOOK.lily,'up');
+}
+
+function renderMoves(opts){
+  currentOpts=opts; cursor=0;
+  const m=$('moves'); m.innerHTML='';
+  opts.forEach((o,i)=>{
+    const b=document.createElement('button'); b.className='move'+(i===0?' sel':''); b.textContent=o.toUpperCase();
+    b.addEventListener('click',e=>{ e.stopPropagation(); choose(i); });
+    b.addEventListener('mouseenter',()=>setCursor(i));
+    m.append(b);
+  });
+  m.classList.remove('hidden');
+}
+function setCursor(i){ cursor=i; [...$('moves').children].forEach((b,k)=>b.classList.toggle('sel',k===i)); }
+function moveCursor(d){
+  let c=cursor;
+  if(d==='left'||d==='right') c = c%2===0 ? c+1 : c-1;
+  else c = c<2 ? c+2 : c-2;
+  if(c<currentOpts.length){ setCursor(c); sfx.blip(); }
+}
+function choose(i){
+  if(!choosing || i<0 || i>=currentOpts.length) return;
+  choosing=false; sfx.select();
+  $('moves').classList.add('hidden');
+  const r=choiceResolve; choiceResolve=null; r(currentOpts[i]);
+}
+function waitChoice(opts){ renderMoves(opts); choosing=true; return new Promise(res=>choiceResolve=res); }
+
+async function ask(q){
+  let first=true;
+  while(true){
+    bBox.show(q.askWho||'sys', q.ask);
+    const got=await waitChoice(shuffle(q.options));
+    bBox.finish(); bBox.arrow.hidden=true;
+    if(got===q.answer){
+      sfx.good();
+      const fs=$('foeSprite'); fs.classList.remove('hit'); void fs.offsetWidth; fs.classList.add('hit');
+      await bsay([['sys',`You used ${got.toUpperCase()}! It's super effective!`]]);
+      return first;
+    }
+    first=false; sfx.bad();
+    await bsay([[q.listener, q.wrong.replace('{W}',got.toUpperCase())],['sys',`Hint: ${q.icon}  Try again!`]]);
+  }
+}
+
+function buildStationQs(st){
+  return st.qs.map(k=>{
+    const q=Q[k], w=W[k];
+    return {...q, word:k, icon:w.icon, answer:q.options[0], listener:q.dir==='us'?'jake':'lily'};
+  });
+}
+function buildReview(n){
+  const taunts=['Lucky guess! Next question!','Hmm! You are good… but not good enough!','Grrr! One more!','I am still VERY confused!'];
+  return shuffle(WORD_ORDER).slice(0,n).map((k,i)=>{
+    const w=W[k], toUS=Math.random()<.5;
+    const answer=toUS?w.us:w.uk;
+    const pool=shuffle(WORD_ORDER.filter(x=>x!==k).map(x=>toUS?W[x].us:W[x].uk)).slice(0,3);
+    return {
+      setup: i===0 ? null : [['king',taunts[(i-1)%taunts.length]]],
+      askWho:'king',
+      ask:`What is "${toUS?w.uk:w.us}" in ${toUS?'American':'British'} English?`,
+      options:[answer,...pool], answer, icon:w.icon, listener:'king',
+      wrong:'HA HA! "{W}"? WRONG! Try again!'
+    };
+  });
+}
+
+async function battle(st){
+  mode='battle';
+  const boss=!!st.boss;
+  const qs = boss ? buildReview(5) : buildStationQs(st);
+  const fs=$('foeSprite'); fs.className='foe-sprite'; fs.innerHTML=CLOUD(boss);
+  if(boss) fs.style.width='30%'; else fs.style.width='26%';
+  $('foeName').textContent = boss ? 'KING CONFUSION' : 'CONFUSION CLOUD';
+  $('foeHp').style.width='100%';
+  $('allyHp').style.width = Math.max(8,(stage/STATIONS.length)*100)+'%';
+  drawAlly();
+  $('moves').classList.add('hidden');
+  bBox.text.textContent=''; bBox.tag.classList.add('hidden');
+  const bt=$('battle'); bt.classList.remove('hidden','flash'); void bt.offsetWidth; bt.classList.add('flash');
+  sfx.meet();
+  if(boss){
+    await bsay([['sys','KING CONFUSION appears!'],['king','I am KING CONFUSION! British English, American English… I mix them ALL up!'],['king','No film for you! No movie for you! …Unless you answer my 5 questions!']]);
+  } else {
+    await bsay([['sys','Oh no! A CONFUSION CLOUD appears!'],['sys','Help Jake and Lily understand each other!']]);
+  }
+  for(let i=0;i<qs.length;i++){
+    const q=qs[i];
+    if(q.setup) await bsay(q.setup);
+    const first=await ask(q);
+    if(first) score++;
+    $('foeHp').style.width = (100*(1-(i+1)/qs.length))+'%';
+    if(q.word && !unlocked.has(q.word)){
+      unlocked.add(q.word); const w=W[q.word];
+      if(q.after) await bsay(q.after);
+      await bsay([['sys',`📖 New word! ${w.icon} UK: ${w.ukShow||w.uk}  =  USA: ${w.usShow||w.us}`]]);
+    } else if(q.after) await bsay(q.after);
+  }
+  $('allyHp').style.width = ((stage+1)/STATIONS.length*100)+'%';
+  await new Promise(r=>setTimeout(r,350));
+  fs.classList.add('gone'); sfx.win();
+  if(boss){
+    await bsay([['king','NOOOO! You know British AND American English!'],['king','I… am… not… confused… anymore…'],['sys','KING CONFUSION turns into a tiny, happy cloud and flies away!']]);
+  } else {
+    await bsay([['sys','The CONFUSION CLOUD disappears!'],['sys','Jake and Lily understand each other better now! ♥']]);
+  }
+  bt.classList.add('hidden');
+}
+
+/* ================= TITLE & ENDING ================= */
+function drawDuo(id, heart){
+  const c=$(id).getContext('2d'); c.setTransform(8,0,0,8,0,0); c.imageSmoothingEnabled=false; c.clearRect(0,0,40,25);
+  drawChar(c,4,8,LOOK.jake,'right'); drawChar(c,20,8,LOOK.lily,'left');
+  c.font="6px 'Press Start 2P'"; c.textBaseline='top';
+  if(heart){ c.fillStyle='#e2475f'; c.fillText('♥',17,1); }
+  else { c.fillStyle='#ffd23f'; c.fillText('?',8,0); c.fillText('?',26,0); }
+}
+async function start(){
+  if(mode!=='title') return;
+  if(document.activeElement) document.activeElement.blur();
+  tone(1,.001);
+  $('title').classList.add('hidden'); $('hud').classList.remove('hidden');
+  updateHud();
+  mode='talk';
+  await say([
+    ['teacher','Hello! Welcome to Brightwood School. I\'m Ms. Parker, the English teacher.'],
+    ['teacher','We have two exchange students: Jake from the USA and Lily from England.'],
+    ['teacher','They like each other a lot. But there is a problem…'],
+    ['teacher','They both speak English, but not the SAME English! They are LOST IN TRANSLATION!'],
+    ['teacher','Please help them! Here is your WORD BOOK. New words go in here.'],
+    ['teacher','Walk with the arrow keys. Press SPACE to talk. Find Jake and Lily in front of the SCHOOL!']
+  ]);
+  mode='map';
+}
+function ending(){
+  mode='end';
+  $('hud').classList.add('hidden');
+  drawDuo('endCv',true);
+  $('endText').innerHTML='Lily: "What a great film!" Jake: "What a great movie!"<br>Jake and Lily are not lost in translation anymore!';
+  const rank = score>=18?'TRANSLATION MASTER':score>=14?'WORD HERO':score>=9?'GOOD HELPER':'BRAVE BEGINNER';
+  $('endScore').innerHTML=`Right on the first try: ${score} / ${TOTAL} ★<br><span class="rank">${rank}</span>`;
+  $('ending').classList.remove('hidden');
+}
+$('startBtn').addEventListener('click',start);
+$('endBook').addEventListener('click',()=>openBook('end'));
+$('againBtn').addEventListener('click',()=>location.reload());
+
+/* ================= LOOP ================= */
+const STEP_MS=170;
+let last=performance.now();
+function update(now){
+  const dt=now-last; last=now;
+  if(player.moving){
+    player.t+=dt; const k=Math.min(1,player.t/STEP_MS);
+    player.px=(player.from[0]+(player.to[0]-player.from[0])*k)*T;
+    player.py=(player.from[1]+(player.to[1]-player.from[1])*k)*T;
+    if(k>=1){ player.moving=false; player.x=player.to[0]; player.y=player.to[1]; player.px=player.x*T; player.py=player.y*T; }
+  }
+  if(!player.moving && mode==='map' && held.length){
+    const d=held[held.length-1]; player.dir=d;
+    const nx=player.x+DV[d][0], ny=player.y+DV[d][1];
+    if(walkable(nx,ny)){ player.moving=true; player.t=0; player.from=[player.x,player.y]; player.to=[nx,ny]; player.step^=1; }
+    else if(!player.bumped){ sfx.bump(); player.bumped=true; setTimeout(()=>player.bumped=false,300); }
+  }
+}
+function draw(now){
+  if(!cv.width) return;
+  ctx.setTransform(K,0,0,K,0,0); ctx.imageSmoothingEnabled=false;
+  const vw=VW*T, vh=VH*T;
+  let camX=Math.round(player.px+8-vw/2), camY=Math.round(player.py+8-vh/2);
+  camX=Math.max(0,Math.min(MW*T-vw,camX)); camY=Math.max(0,Math.min(MH*T-vh,camY));
+  ctx.drawImage(mapCv,camX*K,camY*K,vw*K,vh*K,0,0,vw,vh);
+  const ents=npcs.filter(n=>!n.hidden).map(n=>({y:n.y*T,draw:()=>{
+    const x=n.x*T-camX, y=n.y*T-camY;
+    if(n.dog) drawDog(ctx,x,y,now); else drawChar(ctx,x,y,LOOK[n.look],n.dir);
+  }}));
+  ents.push({y:player.py,draw:()=>drawChar(ctx,Math.round(player.px)-camX,Math.round(player.py)-camY,LOOK.player,player.dir,player.moving?player.step:undefined)});
+  ents.sort((a,b)=>a.y-b.y).forEach(e=>e.draw());
+  // quest marker
+  if(mode==='map'||mode==='talk'){
+    const j=npcs.find(n=>n.id==='jake'); const bob=Math.floor(now/250)%2;
+    const mx=j.x*T-camX+12, my=j.y*T-camY-14-bob;
+    ctx.fillStyle='#384070'; ctx.fillRect(mx-1,my-1,12,13);
+    ctx.fillStyle='#ffd23f'; ctx.fillRect(mx,my,10,11); ctx.fillRect(mx+3,my+11,4,2);
+    ctx.fillStyle='#232842'; ctx.font="8px 'Press Start 2P'"; ctx.textBaseline='top'; ctx.fillText('!',mx+1,my+2);
+  }
+}
+function loop(now){ update(now); draw(now); requestAnimationFrame(loop); }
+
+/* ================= BOOT ================= */
+(async function boot(){
+  try{ await Promise.race([document.fonts.load("8px 'Press Start 2P'"), new Promise(r=>setTimeout(r,2500))]); }catch(e){}
+  K=0; resize();
+  drawDuo('titleCv',false);
+  placePair();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
